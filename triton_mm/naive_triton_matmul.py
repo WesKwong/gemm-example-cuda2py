@@ -3,14 +3,14 @@ import triton.language as tl
 
 
 @triton.jit
-def naive_triton_matmul(out_ptr, a_ptr, b_ptr, M, N, K, stride_am, stride_ak,
-                        stride_bk, stride_bn, stride_outm, stride_outn,
+def naive_triton_matmul(c_ptr, a_ptr, b_ptr, M, N, K, stride_am, stride_ak,
+                        stride_bk, stride_bn, stride_cm, stride_cn,
                         BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr,
                         BLOCK_SIZE_K: tl.constexpr):
-    id_x = tl.program_id(0)
-    id_y = tl.program_id(1)
-    offset_am = (id_y * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
-    offset_bn = (id_x * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
+    pid_m = tl.program_id(0)
+    pid_n = tl.program_id(1)
+    offset_am = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    offset_bn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
     offset_k = tl.arange(0, BLOCK_SIZE_K)
     a_ptrs = a_ptr + (offset_am[:, None] * stride_am +
                       offset_k[None, :] * stride_ak)
@@ -27,20 +27,18 @@ def naive_triton_matmul(out_ptr, a_ptr, b_ptr, M, N, K, stride_am, stride_ak,
         res += tl.dot(a, b, allow_tf32=False)
         a_ptrs += BLOCK_SIZE_K * stride_ak
         b_ptrs += BLOCK_SIZE_K * stride_bk
-    offset_outm = id_y * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
-    offset_outn = id_x * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    out_ptrs = out_ptr + (offset_outm[:, None] * stride_outm +
-                          offset_outn[None, :] * stride_outn)
-    out_mask = (offset_outm[:, None] < M) and (offset_outn[None, :] < N)
-    tl.store(out_ptrs, res, mask=out_mask)
+    c_ptrs = c_ptr + (offset_am[:, None] * stride_cm +
+                      offset_bn[None, :] * stride_cn)
+    c_mask = (offset_am[:, None] < M) & (offset_bn[None, :] < N)
+    tl.store(c_ptrs, res, mask=c_mask)
 
 
-def launch_naive_triton_matmul(out_ptr, a_ptr, b_ptr, M, N, K, stride_am,
-                               stride_ak, stride_bk, stride_bn, stride_outm,
-                               stride_outn, BLOCK_SIZE):
-    grid = lambda meta: (triton.cdiv(N, meta["BLOCK_SIZE_N"]),
-                         triton.cdiv(M, meta["BLOCK_SIZE_M"]))
-    naive_triton_matmul[grid](out_ptr,
+def launch_naive_triton_matmul(c_ptr, a_ptr, b_ptr, M, N, K, stride_am,
+                               stride_ak, stride_bk, stride_bn, stride_cm,
+                               stride_cn, BLOCK_SIZE):
+    grid = lambda meta: (triton.cdiv(M, meta["BLOCK_SIZE_M"]),
+                         triton.cdiv(N, meta["BLOCK_SIZE_N"]))
+    naive_triton_matmul[grid](c_ptr,
                               a_ptr,
                               b_ptr,
                               M,
@@ -50,8 +48,8 @@ def launch_naive_triton_matmul(out_ptr, a_ptr, b_ptr, M, N, K, stride_am,
                               stride_ak,
                               stride_bk,
                               stride_bn,
-                              stride_outm,
-                              stride_outn,
+                              stride_cm,
+                              stride_cn,
                               BLOCK_SIZE_M=BLOCK_SIZE,
                               BLOCK_SIZE_N=BLOCK_SIZE,
                               BLOCK_SIZE_K=BLOCK_SIZE)

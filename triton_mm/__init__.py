@@ -1,1 +1,2 @@
 from .naive_triton_matmul import launch_naive_triton_matmul
+from .smem_triton_matmul import launch_smem_triton_matmul
