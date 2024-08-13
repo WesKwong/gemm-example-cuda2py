@@ -2,17 +2,17 @@
 #include "naive_cuda_matmul.h"
 
 void torch_launch_naive_cuda_matmul(
-    torch::Tensor &out,
+    torch::Tensor &c,
     const torch::Tensor &a,
     const torch::Tensor &b,
-    int64_t M, int64_t N, int64_t K,
-    int64_t stride_am, int64_t stride_ak,
-    int64_t stride_bk, int64_t stride_bn,
-    int64_t stride_cm, int64_t stride_cn,
-    int64_t BLOCK_SIZE)
+    const int64_t M, const int64_t N, const int64_t K,
+    const int64_t stride_am, const int64_t stride_ak,
+    const int64_t stride_bk, const int64_t stride_bn,
+    const int64_t stride_cm, const int64_t stride_cn,
+    const int64_t BLOCK_SIZE)
 {
     launch_naive_cuda_matmul(
-        (float *)out.data_ptr(),
+        (float *)c.data_ptr(),
         (const float *)a.data_ptr(),
         (const float *)b.data_ptr(),
         M, N, K,

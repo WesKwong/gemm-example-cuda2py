@@ -1,34 +1,41 @@
 __global__ void naive_cuda_matmal(
-    float *out_ptr,
+    float *c_ptr,
     const float *a_ptr, const float *b_ptr,
-    int M, int N, int K,
-    int stride_am, int stride_ak,
-    int stride_bk, int stride_bn,
-    int stride_cm, int stride_cn)
+    const int64_t M, const int64_t N, const int64_t K,
+    const int64_t stride_am, const int64_t stride_ak,
+    const int64_t stride_bk, const int64_t stride_bn,
+    const int64_t stride_cm, const int64_t stride_cn,
+    const int64_t BLOCK_SIZE)
 {
-    int id_x = blockIdx.x * blockDim.x + threadIdx.x;
-    int id_y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (id_x > N or id_y > M)
+    const int id_x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int id_y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (id_x > M or id_y > N)
         return;
 
     float res = 0;
-    for (int i = 0; i < K; i++)
+    for (int k = 0; k < K; k++)
     {
-        res += a_ptr[id_y * stride_am + i * stride_ak] * b_ptr[i * stride_bk + id_x * stride_bn];
+        res += a_ptr[id_x * stride_am + k * stride_ak] * b_ptr[k * stride_bk + id_y * stride_bn];
     }
-    out_ptr[id_y * stride_cm + id_x * stride_cn] = res;
+    c_ptr[id_x * stride_cm + id_y * stride_cn] = res;
 }
 
 void launch_naive_cuda_matmul(
-    float *out_ptr,
+    float *c_ptr,
     const float *a_ptr, const float *b_ptr,
-    int M, int N, int K,
-    int stride_am, int stride_ak,
-    int stride_bk, int stride_bn,
-    int stride_cm, int stride_cn,
-    int BLOCK_SIZE)
+    const int64_t M, const int64_t N, const int64_t K,
+    const int64_t stride_am, const int64_t stride_ak,
+    const int64_t stride_bk, const int64_t stride_bn,
+    const int64_t stride_cm, const int64_t stride_cn,
+    const int64_t BLOCK_SIZE)
 {
     dim3 block(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
-    naive_cuda_matmal<<<grid, block>>>(out_ptr, a_ptr, b_ptr, M, N, K, stride_am, stride_ak, stride_bk, stride_bn, stride_cm, stride_cn);
+    dim3 grid((M + block.x - 1) / block.x, (N + block.y - 1) / block.y);
+    naive_cuda_matmal<<<grid, block>>>(
+        c_ptr, a_ptr, b_ptr,
+        M, N, K,
+        stride_am, stride_ak,
+        stride_bk, stride_bn,
+        stride_cm, stride_cn,
+        BLOCK_SIZE);
 }
